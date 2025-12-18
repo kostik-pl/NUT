@@ -2,17 +2,17 @@
 # Script: ups_shutdown_init.sh
 # Purpose: Initiates the graceful shutdown of ESXi hosts using parallel arrays for configuration.
 
-LOGFILE="/var/log/nut_main.log"
+LOGFILE="/var/state/ups/nut_main.log"
 DATE=$(date +"%Y-%m-%d %H:%M:%S")
 
 # --- Configuration Section (PARAMETRIZED) ---
 
 # 1. Array of ESXi host IP addresses / FQDN
-ESXI_HOSTS=("esx-host-01.kernel.local" "esx-host-02.kernel.local")
+ESXI_HOSTS=("10.3.47.2")
 
 # 2. Array of datastore names corresponding to hosts
 # MUST HAVE THE SAME NUMBER OF ELEMENTS AS ESXI_HOSTS!
-DATASTORES=("Datastore-A" "Datastore-B")
+DATASTORES=("Datastore-AN-01-01"")
 
 # SSH credentials
 ESXI_USER="root"
@@ -41,20 +41,20 @@ fi
 log "CRITICAL" "Starting graceful shutdown sequence for ESXi hosts."
 
 for i in "${!ESXI_HOSTS[@]}"; do
-    
+
     host="${ESXI_HOSTS[$i]}"
     datastore="${DATASTORES[$i]}"
-    
+
     # Create the full path
     SSH_COMMAND="/vmfs/volumes/${datastore}/${SCRIPT_NAME}"
-    
+
     # 1. Preparation of command and logging
     log "CRITICAL" "Executing remote script on $host at path: $SSH_COMMAND"
 
     # 2. Execute remote script
     # Redirect stderr and stdout of the sshpass command to the log
     sshpass -p "$ESXI_PASS" ssh -o StrictHostKeyChecking=no "$ESXI_USER"@"$host" "$SSH_COMMAND" 2>&1 >> "$LOGFILE"
-    
+
     if [ $? -eq 0 ]; then
         log "CRITICAL" "Successfully started shutdown on $host."
     else
