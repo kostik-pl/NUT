@@ -1,0 +1,187 @@
+# Установка  NUT
+# ВАЖЛИВО! Ві подальші діє виконувати під root
+
+# Оновлення Linux ТІЛЬКИ для не PROD-систем
+dnf update -y 
+# Підключення репозитерію EPEL
+dnf install -y epel-release
+# Активація модулів для розробників
+# Для версій 9.x 
+dnf config-manager --set-enabled crb
+# Для версій Orcle 8.х потрібно змінити файл /etc/yum.repos.d/oracle-linux-ol8.repo
+# В секції [ol8_codeready_builder] змінити на enabled=1
+# Перевірка списку підключених репозиторіїв
+dnf repolist
+
+# Налаштування фаєрволу
+# ВАЖЛИВО! При презупуску фаєрволу (firewall-cmd --reload) всі контейнери podman втратяь зв'язок - необхідно рестрарт і превірка всіх контенерів
+firewall-cmd --zone=public --permanent --add-service=nut
+firewall-cmd --zone=public --permanent --add-service=snmp
+reboot
+# Перевірити всі контейнери шлях до вайлів налаштувань контейнерів як сервісів /etc/systemd/system
+
+# Встановлення всіх пов'язаних пакетів
+dnf install -y sshpass autoconf automake libtool make gcc pkgconfig systemd-devel net-snmp-devel libusb-devel libudev-devel asciidoc xmlto git gcc-c++ net-snmp net-snmp-utils
+
+# Встановлення NUT через GIT
+cd /usr/local/src
+git clone https://github.com/networkupstools/nut.git
+cd nut
+bash ./autogen.sh
+bash ./configure --with-snmp --with-systemdsystemunitdir=/usr/lib/systemd/system
+make
+make install
+make install-as-root
+
+# Перевірка налаштувань мережевої карти ДБЖ
+# Виставиви відповідну статичну IP-адресу (X.X.X.250) та інші налаштування мережі
+# Дозволити SNMP в налашутваннях фаєрволу
+# Активувати SNMP V1/V2C та довзолити тілки запити для групи "public/Read only"
+
+# Перевірити відповіді ДБЖ по SNMP
+snmpwalk -v2c -c public X.X.X.250 .1 #Цей запит поврне всі дані з ДБЖ
+
+# --- Зміни у файлах конфігурації NUT
+# Зразки файлів знаходтся по шляху /usr/local/ups/etc
+# Перед редагуванням скопіювати необхіджні зразки без закінчення ".sample"
+# Зміни вносимо виключно в кінці файлів
+
+# ---
+# nut.conf
+# Додати
+MODE=netserver
+
+# Перед внесенням змін з'ясувати HID USB для ДБЖ
+lsusb
+dmesg | grep -i hid 
+# Взяти hidraw-порт що призначений для ДБЖ
+# ---
+# ups.conf
+# Додати опис всіх ДЖБ
+# ---
+[eaton_lan]
+    driver = snmp-ups
+    port = 10.3.12.250      # IP-адрес ИБП
+    community = public      # SNMP community (по умолчанию public)
+    snmp_version = v2с
+
+[eaton_usb]
+    driver = usbhid-ups
+    port = /dev/hidraw1     # Замінити hidraw1 на порт отриманий по команді dmesg | grep -i hid
+    vendorid = 0463
+    productid = ffff
+
+# ---
+# Перевірити що рядки опису без "#"
+ 
+# ---
+# upsd.conf
+# Додати
+# ---
+LISTEN 0.0.0.0 3493   
+# ---
+
+# ---
+# upsd.users
+# Додати
+# ---
+[admin]
+    password = strongpass
+    actions = SET
+    instcmds = ALL
+
+[monuser]
+    password = monitorpass
+    upsmon master
+# ---
+
+# ---
+# upsmon.conf
+# Додати
+# ---
+MONITOR eaton_usb@localhost 1 monuser monitorpass master
+MONITOR eaton_lan@localhost 1 monuser monitorpass master
+
+# --- Закінчення змін у файлах конфігурації
+
+# Первірка та перший запуск служб
+# Запуск і превірка дарйверів звязку з ДБЖ, зробити паузу пред отриманням статусу
+/usr/local/ups/sbin/upsdrvctl start
+pause 15
+/usr/local/ups/sbin/upsdrvctl status
+# У разі проблем первірити налаштування ДЖБ (мережевих карт)
+" Для презапуску виконувати послідовність stop/start, , зробити паузу пред отриманням статусу
+/usr/local/ups/sbin/upsdrvctl stop
+/usr/local/ups/sbin/upsdrvctl start
+pause 15
+/usr/local/ups/sbin/upsdrvctl status
+
+# Запуск і статус nut-server (опитувач)
+systemctl start nut-server
+systemctl status nut-server.service
+# Запуск і статус nut-monitor (обробник і запуск скриптів для реакції)
+systemctl start nut-monitor
+systemctl status nut-monitor.service
+ 
+# Проверка працездатності і відповідей від ДБЖ
+/usr/local/ups/bin/upsc eaton_usb
+/usr/local/ups/bin/upsc eaton_lan
+
+# Відкладений засобами cron автозапуск служб NUT
+# Створити новий файл /etc/cron.d/nut_delayed_start
+# Внести 3 рядки для запуску служб
+# @reboot root sleep 10 && /usr/local/ups/sbin/upsdrvctl start
+# @reboot root sleep 60 && systemctl start nut-server
+# @reboot root sleep 120	 && systemctl start nut-monitor
+
+# Якщо потрібно віддавати статуси ДЖЖ від NUT по SNMP 
+# Запуск і налаштування автозапуску для snmpd (надає доступ до серера по SNPM)
+systemctl enable --now snmpd
+# Зробити опис команд для опитувальника SNPM
+# Додати до файлу /etc/snmp/snmpd.conf
+# ---
+rocommunity elevatorups
+
+extend-sh usb_battcharge "/usr/local/ups/bin/upsc eaton_usb@localhost battery.charge"
+extend-sh usb_battruntimeest "/usr/local/ups/bin/upsc eaton_usb@localhost battery.runtime"
+extend-sh usb_battvolt "/usr/local/ups/bin/upsc eaton_usb@localhost battery.voltage"
+extend-sh usb_battchargerstatus "/usr/local/ups/bin/upsc eaton_usb@localhost battery.charger.status"
+extend-sh usb_battcapacity "/usr/local/ups/bin/upsc eaton_usb@localhost battery.capacity"
+extend-sh usb_inputcurrent "/usr/local/ups/bin/upsc eaton_usb@localhost input.current"
+extend-sh usb_inputHZ "/usr/local/ups/bin/upsc eaton_usb@localhost input.frequency"
+extend-sh usb_inputvolt "/usr/local/ups/bin/upsc eaton_usb@localhost input.voltage"
+extend-sh usb_outputcurrent "/usr/local/ups/bin/upsc eaton_usb@localhost output.current"
+extend-sh usb_outputHZ "/usr/local/ups/bin/upsc eaton_usb@localhost output.frequency"
+extend-sh usb_outputvolt "/usr/local/ups/bin/upsc eaton_usb@localhost output.voltage"
+extend-sh usb_upsmfr "/usr/local/ups/bin/upsc eaton_usb@localhost ups.mfr"
+extend-sh usb_upsmodel "/usr/local/ups/bin/upsc eaton_usb@localhost ups.model"
+extend-sh usb_upsserial "/usr/local/ups/bin/upsc eaton_usb@localhost ups.serial"
+extend-sh usb_upsfirmware "/usr/local/ups/bin/upsc eaton_usb@localhost ups.firmware"
+extend-sh usb_upsload "/usr/local/ups/bin/upsc eaton_usb@localhost ups.load"
+extend-sh usb_upsrealpower "/usr/local/ups/bin/upsc eaton_usb@localhost ups.realpower"
+extend-sh usb_upsstatus "/usr/local/ups/bin/upsc eaton_usb@localhost ups.status"
+
+extend-sh lan_battcharge "/usr/local/ups/bin/upsc eaton_lan@localhost battery.charge"
+extend-sh lan_battruntimeest "/usr/local/ups/bin/upsc eaton_lan@localhost battery.runtime"
+extend-sh lan_battvolt "/usr/local/ups/bin/upsc eaton_lan@localhost battery.voltage"
+extend-sh lan_battchargerstatus "/usr/local/ups/bin/upsc eaton_lan@localhost battery.charger.status"
+extend-sh lan_battcapacity "/usr/local/ups/bin/upsc eaton_lan@localhost battery.capacity"
+extend-sh lan_inputcurrent "/usr/local/ups/bin/upsc eaton_lan@localhost input.current"
+extend-sh lan_inputHZ "/usr/local/ups/bin/upsc eaton_lan@localhost input.frequency"
+extend-sh lan_inputvolt "/usr/local/ups/bin/upsc eaton_lan@localhost input.voltage"
+extend-sh lan_outputcurrent "/usr/local/ups/bin/upsc eaton_lan@localhost output.current"
+extend-sh lan_outputHZ "/usr/local/ups/bin/upsc eaton_lan@localhost output.frequency"
+extend-sh lan_outputvolt "/usr/local/ups/bin/upsc eaton_lan@localhost output.voltage"
+extend-sh lan_upsmfr "/usr/local/ups/bin/upsc eaton_lan@localhost ups.mfr"
+extend-sh lan_upsmodel "/usr/local/ups/bin/upsc eaton_lan@localhost ups.model"
+extend-sh lan_upsserial "/usr/local/ups/bin/upsc eaton_lan@localhost ups.serial"
+extend-sh lan_upsfirmware "/usr/local/ups/bin/upsc eaton_lan@localhost ups.firmware"
+extend-sh lan_upsload "/usr/local/ups/bin/upsc eaton_lan@localhost ups.load"
+extend-sh lan_upsrealpower "/usr/local/ups/bin/upsc eaton_lan@localhost ups.realpower"
+extend-sh lan_upsstatus "/usr/local/ups/bin/upsc eaton_lan@localhost ups.status"
+# ---
+# Звернути увагу на првильні імена пристроїв після команди upsc/
+# Ім'я повино відповідити тим які вкащані у конфігураційному файлі ups.conf у квадратних дужках як назва розділу, наприклад [eaton_lan]
+
+# Перезапуск smptd
+systemctl restart snmpd
