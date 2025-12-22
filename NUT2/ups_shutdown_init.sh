@@ -1,26 +1,24 @@
 #!/bin/bash
 # Script: ups_shutdown_init.sh
-# Purpose: Initiates the graceful shutdown of ESXi hosts using parallel arrays for configuration.
+# Purpose: Initiates the graceful shutdown of ESXi hosts
 
 LOGFILE="/var/state/ups/nut_main.log"
 DATE=$(date +"%Y-%m-%d %H:%M:%S")
 
-# --- Configuration Section (PARAMETRIZED) ---
+# --- Configuration Section ---
 
 # 1. Array of ESXi host IP addresses / FQDN
 ESXI_HOSTS=("10.3.47.2")
 
-# 2. Array of datastore names corresponding to hosts
-# MUST HAVE THE SAME NUMBER OF ELEMENTS AS ESXI_HOSTS!
-DATASTORES=("Datastore-AN-01-01"")
+# 2. Array of datastore names (FIXED: removed extra quote)
+DATASTORES=("Datastore-AN-01-01")
 
 # SSH credentials
 ESXI_USER="root"
-# CRITICAL: Replace sshpass with SSH keys at the earliest opportunity!
-ESXI_PASS="password_for_esxi" 
+ESXI_PASS="a1502EMC2805" 
 
 # Standard path to the script on the datastore
-SCRIPT_NAME="Scripts/AutoOFF.sh"
+SCRIPT_NAME="AutoOFF.sh"
 
 # --- Logging Function ---
 log() {
@@ -29,38 +27,31 @@ log() {
     echo "$DATE [ups_shutdown_init.sh] $level: $message" >> "$LOGFILE"
 }
 
-# --- Validation Function ---
-
+# --- Validation Section ---
 if [ ${#ESXI_HOSTS[@]} -ne ${#DATASTORES[@]} ]; then
     log "ERROR" "Array size mismatch! ESXI_HOSTS has ${#ESXI_HOSTS[@]} elements, DATASTORES has ${#DATASTORES[@]}."
     exit 1
 fi
 
 # --- Main Logic ---
-
 log "CRITICAL" "Starting graceful shutdown sequence for ESXi hosts."
 
 for i in "${!ESXI_HOSTS[@]}"; do
-
     host="${ESXI_HOSTS[$i]}"
     datastore="${DATASTORES[$i]}"
 
-    # Create the full path
-    SSH_COMMAND="/vmfs/volumes/${datastore}/${SCRIPT_NAME}"
+    # FIXED: Added 'sh' call before the absolute path as required by ESXi
+    SSH_COMMAND="sh -o StrictHostKeyChecking=no /vmfs/volumes/${datastore}/${SCRIPT_NAME}"
 
-    # 1. Preparation of command and logging
-    log "CRITICAL" "Executing remote script on $host at path: $SSH_COMMAND"
+    log "CRITICAL" "Executing remote script on $host via command: $SSH_COMMAND"
 
-    # 2. Execute remote script
-    # Redirect stderr and stdout of the sshpass command to the log
-    sshpass -p "$ESXI_PASS" ssh -o StrictHostKeyChecking=no "$ESXI_USER"@"$host" "$SSH_COMMAND" 2>&1 >> "$LOGFILE"
+    # Execute remote command using sshpass
+    sshpass -p "$ESXI_PASS" ssh -o StrictHostKeyChecking=no "$ESXI_USER"@"$host" "$SSH_COMMAND" >> "$LOGFILE" 2>&1
 
     if [ $? -eq 0 ]; then
         log "CRITICAL" "Successfully started shutdown on $host."
     else
-        # $? - exit code of the previous command
-        log "ERROR" "Failed to execute shutdown script on $host. SSH code: $?."
-        log "ERROR" "Check $LOGFILE for SSH output details."
+        log "ERROR" "Failed to execute shutdown script on $host. Check $LOGFILE for details."
     fi
 done
 
