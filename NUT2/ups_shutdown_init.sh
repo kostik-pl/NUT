@@ -41,7 +41,7 @@ for i in "${!ESXI_HOSTS[@]}"; do
     datastore="${DATASTORES[$i]}"
 
     # FIXED: Added 'sh' call before the absolute path as required by ESXi
-    SSH_COMMAND="sh -o StrictHostKeyChecking=no /vmfs/volumes/${datastore}/${SCRIPT_NAME}"
+    SSH_COMMAND="sh /vmfs/volumes/${datastore}/${SCRIPT_NAME}"
 
     log "CRITICAL" "Executing remote script on $host via command: $SSH_COMMAND"
 
