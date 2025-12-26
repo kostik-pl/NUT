@@ -63,7 +63,7 @@ dmesg | grep -i hid
     driver = snmp-ups
     port = 10.3.12.250      # IP-адрес ИБП
     community = public      # SNMP community (по умолчанию public)
-    snmp_version = v2с
+    snmp_version = v1
 
 [eaton_usb]
     driver = usbhid-ups

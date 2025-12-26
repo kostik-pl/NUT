@@ -1,0 +1,21 @@
+2025-12-25 09:00:05 [monitor] INFO: Monitoring loop started (pid=11054)
+2025-12-25 09:07:05 [monitor] INFO: UPS back online, exiting loop
+2025-12-25 10:01:58 [monitor] INFO: Monitoring loop started (pid=12015)
+2025-12-25 10:39:58 [monitor] CRITICAL: Battery 49% <= 50%. Shutdown triggered.
+2025-12-25 10:39:58 [ups_shutdown_init.sh] CRITICAL: Starting graceful shutdown sequence for ESXi hosts.
+2025-12-25 10:39:58 [ups_shutdown_init.sh] CRITICAL: Executing remote script on 10.3.47.2 via command: sh /vmfs/volumes/Datastore-AN-01-01/AutoOFF.sh
+Could not create directory '/.ssh'.
+Failed to add the host to the list of known hosts (/.ssh/known_hosts).
+2025-12-25 16:00:29 [monitor] INFO: Monitoring loop started (pid=5249)
+2025-12-25 16:33:30 [monitor] CRITICAL: Battery 50% <= 50%. Shutdown triggered.
+2025-12-25 16:33:30 [ups_shutdown_init.sh] CRITICAL: Starting graceful shutdown sequence for ESXi hosts.
+2025-12-25 16:33:30 [ups_shutdown_init.sh] CRITICAL: Executing remote script on 10.3.47.2 via command: sh /vmfs/volumes/Datastore-AN-01-01/AutoOFF.sh
+Could not create directory '/.ssh'.
+Failed to add the host to the list of known hosts (/.ssh/known_hosts).
+2025-12-25 22:01:31 [monitor] INFO: Monitoring loop started (pid=4269)
+2025-12-25 22:19:31 [monitor] CRITICAL: Battery 49% <= 50%. Shutdown triggered.
+2025-12-25 22:19:31 [ups_shutdown_init.sh] CRITICAL: Starting graceful shutdown sequence for ESXi hosts.
+2025-12-25 22:19:31 [ups_shutdown_init.sh] CRITICAL: Executing remote script on 10.3.47.2 via command: sh /vmfs/volumes/Datastore-AN-01-01/AutoOFF.sh
+Could not create directory '/.ssh'.
+Failed to add the host to the list of known hosts (/.ssh/known_hosts).
+2025-12-26 02:01:04 [monitor] INFO: Monitoring loop started (pid=4287)
